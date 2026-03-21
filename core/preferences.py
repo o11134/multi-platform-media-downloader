@@ -15,6 +15,12 @@ class AppPreferences:
     quality: str = "1080p"
     file_format: str = "MP4"
     appearance_mode: str = "dark"
+    scope_mode: str = "auto"
+    max_items: int = 50
+    video_only: bool = True
+    cookies_mode: str = "auto"
+    cookies_browser: str = "chrome"
+    cookies_file: str = ""
 
 
 class PreferencesStore:
@@ -28,6 +34,20 @@ class PreferencesStore:
 
         try:
             raw = json.loads(self._file_path.read_text(encoding="utf-8"))
+            scope_mode = str(raw.get("scope_mode", "auto")).lower()
+            if scope_mode in {"profile", "collection"}:
+                scope_mode = "profile_collection"
+            if scope_mode not in {"auto", "direct", "profile_collection"}:
+                scope_mode = "auto"
+
+            cookies_mode = str(raw.get("cookies_mode", "auto")).lower()
+            if cookies_mode not in {"auto", "browser", "file", "off"}:
+                cookies_mode = "auto"
+
+            cookies_browser = str(raw.get("cookies_browser", "chrome")).lower()
+            if cookies_browser not in {"chrome", "edge", "firefox", "brave"}:
+                cookies_browser = "chrome"
+
             return AppPreferences(
                 last_output_dir=str(raw.get("last_output_dir", "")),
                 notifications_enabled=bool(raw.get("notifications_enabled", True)),
@@ -37,6 +57,12 @@ class PreferencesStore:
                 quality=str(raw.get("quality", "1080p")),
                 file_format=str(raw.get("file_format", "MP4")),
                 appearance_mode=str(raw.get("appearance_mode", "dark")).lower(),
+                scope_mode=scope_mode,
+                max_items=max(1, min(500, int(raw.get("max_items", 50)))),
+                video_only=bool(raw.get("video_only", True)),
+                cookies_mode=cookies_mode,
+                cookies_browser=cookies_browser,
+                cookies_file=str(raw.get("cookies_file", "")),
             )
         except Exception:
             return AppPreferences()

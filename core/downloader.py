@@ -30,6 +30,9 @@ class DownloadOptions:
     output_dir: Path
     parallel_downloads: int = 1
     max_retries: int = 3
+    cookies_mode: str = "auto"
+    cookies_browser: str = "chrome"
+    cookies_file: str = ""
 
 
 @dataclass(slots=True)
@@ -541,6 +544,20 @@ class DownloadManager:
         if ffmpeg_path:
             ydl_options["ffmpeg_location"] = ffmpeg_path
 
+        cookies_mode = (options.cookies_mode or "auto").lower().strip()
+        cookies_browser = (options.cookies_browser or "chrome").strip()
+        cookies_file = (options.cookies_file or "").strip()
+        if cookies_mode != "off":
+            if cookies_mode == "auto":
+                if cookies_file and Path(cookies_file).exists():
+                    ydl_options["cookiefile"] = cookies_file
+                elif cookies_browser:
+                    ydl_options["cookiesfrombrowser"] = (cookies_browser,)
+            elif cookies_mode == "browser" and cookies_browser:
+                ydl_options["cookiesfrombrowser"] = (cookies_browser,)
+            elif cookies_mode == "file" and cookies_file:
+                ydl_options["cookiefile"] = cookies_file
+
         audio_mode = quality == "AUDIO ONLY" or fmt in {"MP3", "M4A"}
         if audio_mode:
             ydl_options["format"] = "bestaudio/best"
@@ -587,22 +604,22 @@ class DownloadManager:
         lower = message.lower()
 
         if "unsupported url" in lower:
-            return "INVALID_URL", "Invalid URL for this video. Please verify the link is a YouTube watch URL."
+            return "INVALID_URL", "Invalid URL for this media item. Verify the link and retry."
         if "private video" in lower or "private" in lower:
-            return "PRIVATE_VIDEO", "This video is private and cannot be downloaded by anonymous requests."
+            return "PRIVATE_VIDEO", "This media is private and cannot be downloaded without account cookies."
         if "age" in lower and "restricted" in lower:
-            return "AGE_RESTRICTED", "This video is age-restricted and requires an authenticated session."
+            return "AGE_RESTRICTED", "This media is age-restricted and requires an authenticated session."
         if "sign in to confirm your age" in lower:
-            return "AGE_CONFIRMATION", "Age confirmation required by YouTube. Sign-in credentials are needed."
+            return "AGE_CONFIRMATION", "Age confirmation required. Sign-in cookies are needed."
         if "members-only" in lower or "members only" in lower:
             return (
                 "MEMBERS_ONLY",
-                "This video is members-only and is not accessible without membership credentials.",
+                "This media is members-only and is not accessible without membership credentials.",
             )
-        if "this video is unavailable" in lower:
-            return "UNAVAILABLE", "The video is unavailable in your region/account or has been removed."
+        if "this video is unavailable" in lower or "unavailable" in lower:
+            return "UNAVAILABLE", "This media is unavailable in your region/account or has been removed."
         if "copyright" in lower:
-            return "COPYRIGHT_BLOCK", "The video appears blocked by copyright restrictions in your region."
+            return "COPYRIGHT_BLOCK", "This media appears blocked by copyright restrictions in your region."
         if "http error 403" in lower or "forbidden" in lower:
             return (
                 "HTTP_403",
@@ -611,7 +628,7 @@ class DownloadManager:
         if "http error 404" in lower or "not found" in lower:
             return "HTTP_404", "Resource not found (HTTP 404). The video may have been removed."
         if "429" in lower or "too many requests" in lower:
-            return "RATE_LIMIT", "Rate-limited by YouTube (HTTP 429). Wait a few minutes and retry."
+            return "RATE_LIMIT", "Rate-limited by platform (HTTP 429). Wait a few minutes and retry."
         if "no space left" in lower or "disk full" in lower:
             return "DISK_FULL", "Download failed because the disk is full. Free disk space and retry."
         if "permission denied" in lower or "access is denied" in lower:

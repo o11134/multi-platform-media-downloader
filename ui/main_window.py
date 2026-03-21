@@ -9,10 +9,11 @@ from concurrent.futures import Future, ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
 from tkinter import filedialog, messagebox
+from typing import Any
 
 import customtkinter as ctk
 
-from core.analyzer import InvalidUrlError, PlaylistAnalyzer, PlaylistInfo, PlaylistUnavailableError, format_duration
+from core.analyzer import AnalysisOptions, InvalidUrlError, PlaylistAnalyzer, PlaylistInfo, PlaylistUnavailableError, format_duration
 from core.database import HistoryDatabase, HistoryEntry
 from core.downloader import DownloadManager, DownloadOptions, DownloadTask
 from core.preferences import AppPreferences, PreferencesStore
@@ -80,7 +81,7 @@ class MainWindow(ctk.CTk):
         self._toaster = ToastNotifier() if ToastNotifier else None
 
         self._nav_buttons: dict[str, ctk.CTkButton] = {}
-        self._pages: dict[str, ctk.CTkFrame] = {}
+        self._pages: dict[str, Any] = {}
 
         default_out = Path.home() / "Downloads"
         if not default_out.exists():
@@ -97,6 +98,12 @@ class MainWindow(ctk.CTk):
         self.output_dir_var = ctk.StringVar(value=str(pref_folder))
         self.auto_subfolder_var = ctk.BooleanVar(value=self._preferences.auto_subfolder)
         self.parallel_var = ctk.IntVar(value=max(1, min(3, int(self._preferences.parallel_downloads))))
+        self.scope_mode_var = ctk.StringVar(value=self._preferences.scope_mode)
+        self.max_items_var = ctk.IntVar(value=max(1, min(500, int(self._preferences.max_items))))
+        self.video_only_var = ctk.BooleanVar(value=self._preferences.video_only)
+        self.cookies_mode_var = ctk.StringVar(value=self._preferences.cookies_mode)
+        self.cookies_browser_var = ctk.StringVar(value=self._preferences.cookies_browser)
+        self.cookies_file_var = ctk.StringVar(value=self._preferences.cookies_file)
 
         self._build_shell()
         self._build_dashboard_page()
@@ -106,6 +113,7 @@ class MainWindow(ctk.CTk):
         self._switch_page("dashboard")
         self._refresh_history_table()
         self.settings_view.set_output_dir(self.output_dir_var.get())
+        self.settings_view.set_cookies_file(self.cookies_file_var.get())
         self.settings_view.set_dark_mode(ctk.get_appearance_mode().lower() != "light")
         self._refresh_status_bar()
 
@@ -300,7 +308,7 @@ class MainWindow(ctk.CTk):
         ).grid(row=0, column=0, sticky="w")
         ctk.CTkLabel(
             hero,
-            text="Paste a YouTube playlist URL to begin extraction.",
+            text="Paste a YouTube / Instagram / TikTok / X URL to begin extraction.",
             text_color=TOKENS["muted"],
             font=("Inter", 12),
             anchor="w",
@@ -318,7 +326,7 @@ class MainWindow(ctk.CTk):
             border_color="#603e39",
             corner_radius=8,
             text_color=TOKENS["on_surface"],
-            placeholder_text="https://www.youtube.com/playlist?list=...",
+            placeholder_text="https://www.instagram.com/... or https://x.com/...",
             font=("Consolas", 12),
             height=48,
         )
@@ -349,6 +357,28 @@ class MainWindow(ctk.CTk):
             font=("Inter", 11, "bold"),
         )
         self.analyze_btn.grid(row=0, column=2)
+
+        mode_row = ctk.CTkFrame(hero, fg_color="transparent")
+        mode_row.grid(row=3, column=0, sticky="w", pady=(8, 0))
+
+        ctk.CTkLabel(
+            mode_row,
+            text="MODE",
+            text_color=TOKENS["muted"],
+            font=("Inter", 10, "bold"),
+            anchor="w",
+        ).grid(row=0, column=0, padx=(0, 8), sticky="w")
+
+        ctk.CTkOptionMenu(
+            mode_row,
+            values=["auto", "direct", "profile_collection"],
+            variable=self.scope_mode_var,
+            fg_color=TOKENS["surface_container_lowest"],
+            button_color=TOKENS["surface_container_highest"],
+            dropdown_fg_color=TOKENS["surface_container_low"],
+            corner_radius=8,
+            width=180,
+        ).grid(row=0, column=1, sticky="w")
 
         analyzer_card = ctk.CTkFrame(content, fg_color=TOKENS["surface_container_low"], corner_radius=12)
         analyzer_card.grid(row=1, column=0, sticky="nsew", padx=(0, 10), pady=(0, 14))
@@ -381,7 +411,7 @@ class MainWindow(ctk.CTk):
         )
         self.analyzer_status.grid(row=0, column=1, sticky="e")
 
-        ctk.CTkLabel(analyzer_card, text="Playlist Analyzer", text_color=TOKENS["on_surface"], font=("Inter", 24, "bold")).grid(
+        ctk.CTkLabel(analyzer_card, text="Media Analyzer", text_color=TOKENS["on_surface"], font=("Inter", 24, "bold")).grid(
             row=1, column=0, sticky="w", padx=14, pady=(0, 10)
         )
 
@@ -629,6 +659,7 @@ class MainWindow(ctk.CTk):
             page,
             preferences=self._preferences,
             on_browse=self._pick_output_folder,
+            on_browse_cookies=self._pick_cookies_file,
             on_apply=self._apply_settings_values,
         )
         self.settings_view.grid(row=0, column=0, padx=32, pady=24, sticky="nsew")
@@ -663,7 +694,7 @@ class MainWindow(ctk.CTk):
     def _analyze_playlist(self) -> None:
         url = self.url_var.get().strip()
         if not url:
-            messagebox.showwarning("Missing URL", "Please paste a playlist URL first.")
+            messagebox.showwarning("Missing URL", "Please paste a media URL first.")
             return
 
         with self._analysis_lock:
@@ -674,7 +705,21 @@ class MainWindow(ctk.CTk):
         self.analyze_btn.configure(state="disabled", text="ANALYZING...")
         self.analyzer_status.configure(text="● STATUS: RUNNING", text_color=TOKENS["primary"])
 
-        future: Future[PlaylistInfo] = self._analysis_executor.submit(self._analyzer.analyze, url)
+        try:
+            max_items = int(self.max_items_var.get())
+        except Exception:
+            max_items = 50
+
+        analysis_options = AnalysisOptions(
+            scope_mode=self.scope_mode_var.get().strip() or "auto",
+            max_items=max(1, min(500, max_items)),
+            video_only=bool(self.video_only_var.get()),
+            cookies_mode=self.cookies_mode_var.get().strip() or "auto",
+            cookies_browser=self.cookies_browser_var.get().strip() or "chrome",
+            cookies_file=self.cookies_file_var.get().strip(),
+        )
+
+        future: Future[PlaylistInfo] = self._analysis_executor.submit(self._analyzer.analyze, url, analysis_options)
         future.add_done_callback(lambda f: self.after(0, self._on_analysis_complete, f))
 
     def _on_analysis_complete(self, future: Future[PlaylistInfo]) -> None:
@@ -691,7 +736,7 @@ class MainWindow(ctk.CTk):
             return
         except PlaylistUnavailableError as exc:
             self.analyzer_status.configure(text="● STATUS: ERROR", text_color=TOKENS["red"])
-            messagebox.showerror("Playlist Error", str(exc))
+            messagebox.showerror("Media Error", str(exc))
             return
         except Exception as exc:  # noqa: BLE001
             self.analyzer_status.configure(text="● STATUS: ERROR", text_color=TOKENS["red"])
@@ -702,12 +747,24 @@ class MainWindow(ctk.CTk):
         self._video_pause_state = {v.video_id: False for v in playlist.videos}
         self.items_found_value.configure(text=f"{playlist.video_count} VIDEOS")
         self.duration_value.configure(text=f"{format_duration(playlist.total_duration_seconds)} DURATION")
-        self.analyzer_status.configure(text="● STATUS: IDLE", text_color=TOKENS["muted"])
+        platform_label = {
+            "youtube": "YOUTUBE",
+            "instagram": "INSTAGRAM",
+            "tiktok": "TIKTOK",
+            "x": "X",
+        }.get(playlist.source_platform, "UNKNOWN")
+        self.analyzer_status.configure(text=f"● STATUS: {platform_label}", text_color=TOKENS["muted"])
         self.transfer_status.configure(text="Status: Ready to download")
         self.init_download_btn.configure(state="normal")
 
         self.playlist_view.set_videos(playlist.videos)
-        self.playlist_view.set_playlist_header(playlist.title, playlist.video_count, playlist.total_duration_seconds)
+        self.playlist_view.set_playlist_header(
+            playlist.title,
+            playlist.video_count,
+            playlist.total_duration_seconds,
+            source_platform=playlist.source_platform,
+            source_kind=playlist.source_kind,
+        )
         self.playlist_view.reset_progress()
 
         self._switch_page("playlists")
@@ -716,7 +773,7 @@ class MainWindow(ctk.CTk):
         if self._download_manager.is_running:
             return
         if not self._playlist_info:
-            messagebox.showwarning("Analyze First", "Analyze a playlist before downloading.")
+            messagebox.showwarning("Analyze First", "Analyze a media URL before downloading.")
             return
 
         selected_ids = self.playlist_view.selected_video_ids()
@@ -742,18 +799,15 @@ class MainWindow(ctk.CTk):
             output_dir=output_dir,
             parallel_downloads=max(1, min(3, int(self.parallel_var.get()))),
             max_retries=3,
+            cookies_mode=self.cookies_mode_var.get().strip() or "auto",
+            cookies_browser=self.cookies_browser_var.get().strip() or "chrome",
+            cookies_file=self.cookies_file_var.get().strip(),
         )
-
-        self.update_idletasks()
-        locked_geometry = self.geometry()
 
         self.transfer_status.configure(text="Status: Downloading...", text_color=TOKENS["primary"])
         self.init_download_btn.configure(state="disabled")
         self.playlist_view.reset_progress()
         self.queue_status.configure(text="INITIALIZING DOWNLOAD QUEUE...  0 KB/S")
-
-        self.update_idletasks()
-        self.geometry(locked_geometry)
 
         try:
             self._download_manager.start_batch(self._playlist_info.title, tasks, options)
@@ -879,12 +933,16 @@ class MainWindow(ctk.CTk):
             return
 
     def _store_history(self, status: str, event: dict, error_message: str, error_code: str) -> None:
-        playlist_title = self._playlist_info.title if self._playlist_info else "Unknown Playlist"
+        playlist_title = self._playlist_info.title if self._playlist_info else "Unknown Source"
+        source_platform = self._playlist_info.source_platform if self._playlist_info else "unknown"
+        source_kind = self._playlist_info.source_kind if self._playlist_info else "direct"
         self._database.add_entry(
             HistoryEntry(
                 playlist_title=playlist_title,
                 video_title=str(event.get("title", "Unknown Video")),
                 video_url=str(event.get("url", "")),
+                source_platform=source_platform,
+                source_kind=source_kind,
                 status=status,
                 quality=self.quality_var.get(),
                 file_format=self.format_var.get(),
@@ -987,7 +1045,15 @@ class MainWindow(ctk.CTk):
         self.format_var.set(values.get("format", self.format_var.get()))
         self.parallel_var.set(int(values.get("parallel", self.parallel_var.get())))
         self.output_dir_var.set(values.get("output_dir", self.output_dir_var.get()))
+        self.settings_view.set_output_dir(self.output_dir_var.get())
         self.auto_subfolder_var.set(bool(values.get("auto_subfolder", self.auto_subfolder_var.get())))
+        self.scope_mode_var.set(str(values.get("scope_mode", self.scope_mode_var.get())))
+        self.max_items_var.set(int(values.get("max_items", self.max_items_var.get())))
+        self.video_only_var.set(bool(values.get("video_only", self.video_only_var.get())))
+        self.cookies_mode_var.set(str(values.get("cookies_mode", self.cookies_mode_var.get())))
+        self.cookies_browser_var.set(str(values.get("cookies_browser", self.cookies_browser_var.get())))
+        self.cookies_file_var.set(str(values.get("cookies_file", self.cookies_file_var.get())))
+        self.settings_view.set_cookies_file(self.cookies_file_var.get())
         self._sound_enabled = bool(values.get("sound", self._sound_enabled))
         appearance = "dark" if bool(values.get("dark_mode", True)) else "light"
         self._set_appearance(appearance)
@@ -1001,6 +1067,16 @@ class MainWindow(ctk.CTk):
             self._save_preferences()
             self._refresh_status_bar()
 
+    def _pick_cookies_file(self) -> None:
+        selected = filedialog.askopenfilename(
+            title="Select cookies file",
+            filetypes=[("Text Files", "*.txt"), ("All Files", "*.*")],
+        )
+        if selected:
+            self.cookies_file_var.set(selected)
+            self.settings_view.set_cookies_file(selected)
+            self._save_preferences()
+
     def _toggle_theme(self) -> None:
         mode = "light" if ctk.get_appearance_mode().lower() == "dark" else "dark"
         self._set_appearance(mode)
@@ -1009,7 +1085,7 @@ class MainWindow(ctk.CTk):
 
     def _refresh_status_bar(self) -> None:
         try:
-            socket.create_connection(("www.youtube.com", 443), timeout=1.5).close()
+            socket.create_connection(("www.google.com", 443), timeout=1.5).close()
             network_text = "NETWORK: CONNECTED"
         except OSError:
             network_text = "NETWORK: OFFLINE"
@@ -1036,6 +1112,12 @@ class MainWindow(ctk.CTk):
             quality=self.quality_var.get(),
             file_format=self.format_var.get(),
             appearance_mode=ctk.get_appearance_mode().lower(),
+            scope_mode=self.scope_mode_var.get().strip() or "auto",
+            max_items=max(1, min(500, int(self.max_items_var.get()))),
+            video_only=bool(self.video_only_var.get()),
+            cookies_mode=self.cookies_mode_var.get().strip() or "auto",
+            cookies_browser=self.cookies_browser_var.get().strip() or "chrome",
+            cookies_file=self.cookies_file_var.get().strip(),
         )
         self._preferences = pref
         self._preferences_store.save(pref)
@@ -1073,7 +1155,7 @@ class MainWindow(ctk.CTk):
     def _sanitize_folder_name(name: str) -> str:
         bad_chars = '<>:"/\\|?*'
         cleaned = "".join("_" if ch in bad_chars else ch for ch in name).strip().rstrip(".")
-        return cleaned or "YouTube Playlist"
+        return cleaned or "Media Collection"
 
     @staticmethod
     def _format_bytes(num: float) -> str:

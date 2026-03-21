@@ -26,14 +26,16 @@ TOKENS = {
 class SettingsView(ctk.CTkFrame):
     def __init__(
         self,
-        master: ctk.CTkBaseClass,
+        master: Any,
         preferences: AppPreferences,
         on_browse: Callable[[], None],
+        on_browse_cookies: Callable[[], None],
         on_apply: Callable[[dict[str, Any]], None],
     ) -> None:
         super().__init__(master, fg_color="transparent")
         self.grid_columnconfigure(0, weight=1)
         self._on_browse = on_browse
+        self._on_browse_cookies = on_browse_cookies
         self._on_apply = on_apply
 
         self.quality_var = ctk.StringVar(value=preferences.quality)
@@ -43,6 +45,12 @@ class SettingsView(ctk.CTkFrame):
         self.auto_subfolder_var = ctk.BooleanVar(value=preferences.auto_subfolder)
         self.sound_var = ctk.BooleanVar(value=preferences.sound_enabled)
         self.dark_mode_var = ctk.BooleanVar(value=preferences.appearance_mode != "light")
+        self.scope_var = ctk.StringVar(value=preferences.scope_mode)
+        self.max_items_var = ctk.StringVar(value=str(preferences.max_items))
+        self.video_only_var = ctk.BooleanVar(value=preferences.video_only)
+        self.cookies_mode_var = ctk.StringVar(value=preferences.cookies_mode)
+        self.cookies_browser_var = ctk.StringVar(value=preferences.cookies_browser)
+        self.cookies_file_var = ctk.StringVar(value=preferences.cookies_file)
 
         self._build_ui()
 
@@ -148,6 +156,43 @@ class SettingsView(ctk.CTkFrame):
             anchor="w",
         ).grid(row=0, column=1, padx=(0, 8), pady=8, sticky="w")
 
+        ctk.CTkLabel(right, text="ANALYSIS MODE", text_color=TOKENS["on_surface_variant"], font=("Inter", 10, "bold")).grid(
+            row=4, column=0, padx=12, pady=(0, 6), sticky="w"
+        )
+        self.scope_menu = ctk.CTkOptionMenu(
+            right,
+            values=["auto", "direct", "profile_collection"],
+            variable=self.scope_var,
+            fg_color=TOKENS["surface_container_lowest"],
+            button_color=TOKENS["surface_container_highest"],
+            dropdown_fg_color=TOKENS["surface_container_low"],
+            corner_radius=8,
+        )
+        self.scope_menu.grid(row=5, column=0, padx=12, pady=(4, 10), sticky="ew")
+
+        ctk.CTkLabel(right, text="Collection limit", text_color=TOKENS["on_surface"], font=("Inter", 12)).grid(
+            row=6, column=0, padx=12, sticky="w"
+        )
+        self.max_items_entry = ctk.CTkEntry(
+            right,
+            textvariable=self.max_items_var,
+            fg_color=TOKENS["surface_container_lowest"],
+            border_width=0,
+            corner_radius=8,
+            width=120,
+        )
+        self.max_items_entry.grid(row=7, column=0, padx=12, pady=(4, 10), sticky="w")
+
+        self.video_only_switch = ctk.CTkSwitch(
+            right,
+            text="Videos only",
+            variable=self.video_only_var,
+            progress_color=TOKENS["primary_container"],
+            button_color="white",
+            font=("Inter", 11),
+        )
+        self.video_only_switch.grid(row=8, column=0, padx=12, pady=(0, 12), sticky="w")
+
         storage = ctk.CTkFrame(self, fg_color=TOKENS["surface_container_low"], corner_radius=12)
         storage.grid(row=3, column=0, pady=(14, 0), sticky="ew")
         storage.grid_columnconfigure(0, weight=1)
@@ -216,8 +261,71 @@ class SettingsView(ctk.CTkFrame):
         )
         self.dark_switch.grid(row=0, column=2, sticky="w")
 
+        auth = ctk.CTkFrame(self, fg_color=TOKENS["surface_container_low"], corner_radius=12)
+        auth.grid(row=4, column=0, pady=(14, 0), sticky="ew")
+        auth.grid_columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(auth, text="AUTHENTICATION", text_color=TOKENS["on_surface_variant"], font=("Inter", 10, "bold")).grid(
+            row=0, column=0, padx=12, pady=(12, 6), sticky="w"
+        )
+
+        ctk.CTkLabel(auth, text="Cookies mode", text_color=TOKENS["on_surface"], font=("Inter", 12)).grid(
+            row=1, column=0, padx=12, sticky="w"
+        )
+        self.cookies_mode_menu = ctk.CTkOptionMenu(
+            auth,
+            values=["auto", "browser", "file", "off"],
+            variable=self.cookies_mode_var,
+            fg_color=TOKENS["surface_container_lowest"],
+            button_color=TOKENS["surface_container_highest"],
+            dropdown_fg_color=TOKENS["surface_container_low"],
+            corner_radius=8,
+        )
+        self.cookies_mode_menu.grid(row=2, column=0, padx=12, pady=(4, 10), sticky="ew")
+
+        ctk.CTkLabel(auth, text="Browser source", text_color=TOKENS["on_surface"], font=("Inter", 12)).grid(
+            row=3, column=0, padx=12, sticky="w"
+        )
+        self.cookies_browser_menu = ctk.CTkOptionMenu(
+            auth,
+            values=["chrome", "edge", "firefox", "brave"],
+            variable=self.cookies_browser_var,
+            fg_color=TOKENS["surface_container_lowest"],
+            button_color=TOKENS["surface_container_highest"],
+            dropdown_fg_color=TOKENS["surface_container_low"],
+            corner_radius=8,
+        )
+        self.cookies_browser_menu.grid(row=4, column=0, padx=12, pady=(4, 10), sticky="ew")
+
+        cookie_row = ctk.CTkFrame(auth, fg_color="transparent")
+        cookie_row.grid(row=5, column=0, padx=12, pady=(0, 12), sticky="ew")
+        cookie_row.grid_columnconfigure(0, weight=1)
+
+        self.cookies_file_entry = ctk.CTkEntry(
+            cookie_row,
+            textvariable=self.cookies_file_var,
+            fg_color=TOKENS["surface_container_lowest"],
+            border_width=0,
+            corner_radius=8,
+            text_color=TOKENS["on_surface"],
+            font=("Consolas", 11),
+            height=38,
+            placeholder_text="cookies.txt path",
+        )
+        self.cookies_file_entry.grid(row=0, column=0, sticky="ew", padx=(0, 8))
+
+        ctk.CTkButton(
+            cookie_row,
+            text="BROWSE",
+            fg_color=TOKENS["surface_container_high"],
+            hover_color=TOKENS["surface_bright"],
+            corner_radius=8,
+            width=100,
+            command=self._on_browse_cookies,
+        ).grid(row=0, column=1, sticky="e")
+
         footer = ctk.CTkFrame(self, fg_color="transparent")
-        footer.grid(row=4, column=0, pady=(12, 0), sticky="ew")
+        footer.grid(row=5, column=0, pady=(12, 0), sticky="ew")
         footer.grid_columnconfigure(0, weight=1)
 
         ctk.CTkButton(
@@ -249,6 +357,12 @@ class SettingsView(ctk.CTkFrame):
         self.auto_subfolder_var.set(True)
         self.sound_var.set(True)
         self.dark_mode_var.set(True)
+        self.scope_var.set("auto")
+        self.max_items_var.set("50")
+        self.video_only_var.set(True)
+        self.cookies_mode_var.set("auto")
+        self.cookies_browser_var.set("chrome")
+        self.cookies_file_var.set("")
 
     def _apply(self) -> None:
         try:
@@ -256,6 +370,12 @@ class SettingsView(ctk.CTkFrame):
         except ValueError:
             parallel = 2
         parallel = max(1, min(3, parallel))
+
+        try:
+            max_items = int(self.max_items_var.get().strip())
+        except ValueError:
+            max_items = 50
+        max_items = max(1, min(500, max_items))
 
         values = {
             "quality": self.quality_var.get(),
@@ -265,6 +385,12 @@ class SettingsView(ctk.CTkFrame):
             "auto_subfolder": bool(self.auto_subfolder_var.get()),
             "sound": bool(self.sound_var.get()),
             "dark_mode": bool(self.dark_mode_var.get()),
+            "scope_mode": self.scope_var.get().strip() or "auto",
+            "max_items": max_items,
+            "video_only": bool(self.video_only_var.get()),
+            "cookies_mode": self.cookies_mode_var.get().strip() or "auto",
+            "cookies_browser": self.cookies_browser_var.get().strip() or "chrome",
+            "cookies_file": self.cookies_file_var.get().strip(),
         }
         self._on_apply(values)
 
@@ -273,3 +399,6 @@ class SettingsView(ctk.CTkFrame):
 
     def set_dark_mode(self, is_dark: bool) -> None:
         self.dark_mode_var.set(is_dark)
+
+    def set_cookies_file(self, path: str) -> None:
+        self.cookies_file_var.set(path)

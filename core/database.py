@@ -12,6 +12,8 @@ class HistoryEntry:
     playlist_title: str
     video_title: str
     video_url: str
+    source_platform: str
+    source_kind: str
     status: str
     quality: str
     file_format: str
@@ -44,6 +46,8 @@ class HistoryDatabase:
                         playlist_title TEXT NOT NULL,
                         video_title TEXT NOT NULL,
                         video_url TEXT NOT NULL,
+                        source_platform TEXT NOT NULL DEFAULT 'unknown',
+                        source_kind TEXT NOT NULL DEFAULT 'direct',
                         status TEXT NOT NULL,
                         quality TEXT NOT NULL,
                         file_format TEXT NOT NULL,
@@ -58,6 +62,10 @@ class HistoryDatabase:
                 columns = {row[1] for row in conn.execute("PRAGMA table_info(download_history)").fetchall()}
                 if "error_code" not in columns:
                     conn.execute("ALTER TABLE download_history ADD COLUMN error_code TEXT NOT NULL DEFAULT ''")
+                if "source_platform" not in columns:
+                    conn.execute("ALTER TABLE download_history ADD COLUMN source_platform TEXT NOT NULL DEFAULT 'unknown'")
+                if "source_kind" not in columns:
+                    conn.execute("ALTER TABLE download_history ADD COLUMN source_kind TEXT NOT NULL DEFAULT 'direct'")
                 conn.commit()
 
     def add_entry(self, entry: HistoryEntry) -> None:
@@ -70,6 +78,8 @@ class HistoryDatabase:
                         playlist_title,
                         video_title,
                         video_url,
+                        source_platform,
+                        source_kind,
                         status,
                         quality,
                         file_format,
@@ -79,12 +89,14 @@ class HistoryDatabase:
                         error_message,
                         downloaded_at
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         entry.playlist_title,
                         entry.video_title,
                         entry.video_url,
+                        entry.source_platform,
+                        entry.source_kind,
                         entry.status,
                         entry.quality,
                         entry.file_format,
@@ -122,6 +134,8 @@ class HistoryDatabase:
                         playlist_title,
                         video_title,
                         video_url,
+                        source_platform,
+                        source_kind,
                         status,
                         quality,
                         file_format,

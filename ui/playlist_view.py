@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import Callable
+from typing import Any, Callable
 
 import customtkinter as ctk
 import requests
@@ -33,7 +33,7 @@ THUMB_ROW_H = 45
 class VideoRow(ctk.CTkFrame):
     def __init__(
         self,
-        master: ctk.CTkBaseClass,
+        master: Any,
         index: int,
         video: PlaylistVideo,
         on_toggle: Callable[[str, bool], None],
@@ -213,7 +213,7 @@ class VideoRow(ctk.CTkFrame):
 class PlaylistView(ctk.CTkFrame):
     def __init__(
         self,
-        master: ctk.CTkBaseClass,
+        master: Any,
         cache_dir: Path,
         on_pause_resume: Callable[[str], None],
         on_copy_link: Callable[[str], None],
@@ -272,7 +272,7 @@ class PlaylistView(ctk.CTkFrame):
 
         self.playlist_title = ctk.CTkLabel(
             self.header,
-            text="No playlist loaded",
+            text="No media source loaded",
             text_color=ON_SURFACE,
             font=("Inter", 20, "bold"),
             anchor="w",
@@ -281,7 +281,7 @@ class PlaylistView(ctk.CTkFrame):
 
         self.meta = ctk.CTkLabel(
             self.header,
-            text="Channel - Duration - Pending Download",
+            text="Source - Duration - Pending Download",
             text_color=ON_SURFACE_VARIANT,
             font=("Inter", 11),
             anchor="w",
@@ -344,7 +344,7 @@ class PlaylistView(ctk.CTkFrame):
 
         self._empty_label = ctk.CTkLabel(
             self.rows_scroll,
-            text="No playlist analyzed yet.",
+            text="No media analyzed yet.",
             text_color=ON_SURFACE_VARIANT,
             font=("Inter", 12),
         )
@@ -366,10 +366,24 @@ class PlaylistView(ctk.CTkFrame):
     def set_start_download_command(self, command: Callable[[], None]) -> None:
         self.start_btn.configure(command=command)
 
-    def set_playlist_header(self, title: str, video_count: int, total_duration_seconds: int) -> None:
+    def set_playlist_header(
+        self,
+        title: str,
+        video_count: int,
+        total_duration_seconds: int,
+        source_platform: str = "unknown",
+        source_kind: str = "direct",
+    ) -> None:
         self.playlist_title.configure(text=title)
         self.badge.configure(text=f"{video_count} VIDEOS")
-        self.meta.configure(text=f"YouTube Channel - {format_duration(total_duration_seconds)} - Pending Download")
+        platform_label = {
+            "youtube": "YouTube",
+            "instagram": "Instagram",
+            "tiktok": "TikTok",
+            "x": "X",
+        }.get(source_platform.lower(), "Unknown")
+        kind_label = "Profile" if source_kind == "profile" else "Collection" if source_kind == "collection" else "Direct Link"
+        self.meta.configure(text=f"{platform_label} {kind_label} - {format_duration(total_duration_seconds)} - Pending Download")
         first = next(iter(self._videos.values()), None)
         if first and first.thumbnail_url:
             self._schedule_header_thumbnail(first.thumbnail_url)
@@ -463,7 +477,7 @@ class PlaylistView(ctk.CTkFrame):
                 cache_path.write_bytes(response.content)
 
             with Image.open(cache_path) as image:
-                row_img = image.convert("RGB").resize((THUMB_ROW_W, THUMB_ROW_H), Image.LANCZOS)
+                row_img = image.convert("RGB").resize((THUMB_ROW_W, THUMB_ROW_H), Image.Resampling.LANCZOS)
 
             def apply_image() -> None:
                 self._apply_row_thumbnail(video_id, row_img, generation)
@@ -498,7 +512,7 @@ class PlaylistView(ctk.CTkFrame):
                 cache_path.write_bytes(response.content)
 
             with Image.open(cache_path) as image:
-                header_img = image.convert("RGB").resize((120, 90), Image.LANCZOS)
+                header_img = image.convert("RGB").resize((120, 90), Image.Resampling.LANCZOS)
 
             def apply_image() -> None:
                 thumb = ctk.CTkImage(light_image=header_img, dark_image=header_img, size=(120, 90))
