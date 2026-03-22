@@ -138,9 +138,6 @@ class PlaylistAnalyzer:
         if mode == "auto":
             if cookie_file and Path(cookie_file).exists():
                 ydl_cookie_options["cookiefile"] = cookie_file
-                return ydl_cookie_options
-            if browser:
-                ydl_cookie_options["cookiesfrombrowser"] = (browser,)
             return ydl_cookie_options
         if mode == "browser" and browser:
             ydl_cookie_options["cookiesfrombrowser"] = (browser,)
@@ -241,6 +238,10 @@ class PlaylistAnalyzer:
         except DownloadError as exc:
             message = str(exc).strip()
             lower = message.lower()
+            if "could not copy" in lower and "cookie database" in lower:
+                raise PlaylistUnavailableError(
+                    "Browser cookies are unavailable. Close the browser and retry, or switch Cookies mode to File/Off."
+                ) from exc
             if "unsupported url" in lower:
                 raise InvalidUrlError("Unsupported URL. Please paste a supported media URL.") from exc
             if "private" in lower or "protected" in lower:

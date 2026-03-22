@@ -1,6 +1,6 @@
 # Kinetic Downloader
 
-Professional YouTube playlist downloader with a Kinetic Console UI.
+Professional multi-platform media downloader with a Kinetic Console UI.
 
 ## Quick Installation (Top Priority)
 
@@ -10,6 +10,11 @@ Use this if you just want to install and use the app like any normal Windows pro
 2. Run the installer.
 3. Click Next -> Install -> Finish.
 4. Open **Kinetic Downloader** from Start Menu (or Desktop shortcut if selected).
+
+Latest verified artifacts (this workspace build):
+
+- `dist/KineticDownloader.exe`
+- `dist/KineticDownloader-Setup.exe`
 
 End-user requirements:
 
@@ -34,10 +39,18 @@ This is a single-file executable that can run directly on Windows.
 - Kinetic Console desktop interface with:
   - fixed top bar, left navigation rail, and bottom status bar
   - multi-page workflow: Dashboard, Playlists, History, Settings
-- Playlist analysis from URL using `yt-dlp` metadata extraction:
-  - playlist title, video count, aggregated duration
-  - per-video metadata and thumbnails
-- Playlist operations:
+- Multi-platform URL analysis using `yt-dlp`:
+  - supported platforms: YouTube, Instagram, TikTok, X (Twitter)
+  - source detection: direct link, profile, collection/list (based on URL + selected mode)
+  - media title, item count, aggregated duration
+  - per-item metadata and thumbnails
+- Analysis modes:
+  - `auto` (recommended): detect behavior from URL type
+  - `direct`: direct post/video links only
+  - `profile_collection`: profile/list extraction when supported
+  - configurable extraction limit for profile/collection mode (default: 50)
+  - optional "videos only" filtering
+- Playlist/media operations:
   - scrollable video table
   - select all / deselect all
   - per-video pause/resume
@@ -55,14 +68,44 @@ This is a single-file executable that can run directly on Windows.
   - non-blocking UI (threaded background operations)
 - Storage and notifications:
   - output folder picker
-  - optional playlist subfolder creation
+  - optional source subfolder creation
   - completion sound + Windows toast support
+- Authentication options for restricted/private content:
+  - cookies mode: `auto`, `browser`, `file`, `off`
+  - browser source selection: Chrome / Edge / Firefox / Brave
+  - file-based `cookies.txt` picker from Settings
 - History and telemetry:
   - SQLite-backed download history
+  - source metadata tracking (`source_platform`, `source_kind`)
   - structured error codes
   - in-app history stats and actions
 - Preference persistence:
   - remembers output folder, format/quality, concurrency, toggles, theme mode
+  - remembers analysis mode, extraction limit, video-only mode, and cookie settings
+
+## Supported URL Types
+
+- YouTube:
+  - direct video links
+  - playlist links
+- Instagram:
+  - direct reel/post links
+  - profile links (when extractable)
+- TikTok:
+  - direct video links
+  - profile links
+- X (Twitter):
+  - direct status links
+  - profile/list links (availability depends on upstream extractor and access rules)
+
+## Cookies and Access Notes
+
+- Some profile/list/private URLs require authentication cookies.
+- Recommended setup for stability:
+  1. Keep Cookies mode on `auto` for normal usage.
+  2. If protected URLs fail, switch to `file` and use a valid `cookies.txt` export.
+  3. If using `browser` mode, fully close the browser first so cookie DB locks are released.
+- If the platform or extractor blocks access, the app shows a categorized error code/message in UI and History.
 
 ## Screenshots
 
@@ -82,6 +125,8 @@ Build requirements:
 - Windows 10 or Windows 11
 - Python 3.11+
 - Inno Setup 6 (only if you want to build `KineticDownloader-Setup.exe` yourself)
+
+Note: `build.bat` checks common Inno Setup install paths, including `%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe`.
 
 ### Build single `.exe` + installer
 

@@ -551,8 +551,6 @@ class DownloadManager:
             if cookies_mode == "auto":
                 if cookies_file and Path(cookies_file).exists():
                     ydl_options["cookiefile"] = cookies_file
-                elif cookies_browser:
-                    ydl_options["cookiesfrombrowser"] = (cookies_browser,)
             elif cookies_mode == "browser" and cookies_browser:
                 ydl_options["cookiesfrombrowser"] = (cookies_browser,)
             elif cookies_mode == "file" and cookies_file:
@@ -605,6 +603,11 @@ class DownloadManager:
 
         if "unsupported url" in lower:
             return "INVALID_URL", "Invalid URL for this media item. Verify the link and retry."
+        if "could not copy" in lower and "cookie database" in lower:
+            return (
+                "COOKIES_LOCKED",
+                "Browser cookies are unavailable. Close your browser and retry, or switch Cookies mode to File/Off.",
+            )
         if "private video" in lower or "private" in lower:
             return "PRIVATE_VIDEO", "This media is private and cannot be downloaded without account cookies."
         if "age" in lower and "restricted" in lower:
@@ -697,6 +700,8 @@ class DownloadManager:
             "age-restricted",
             "sign in",
             "unsupported url",
+            "cookie database",
+            "could not copy",
             "not found",
             "permission denied",
             "access is denied",
